@@ -1,0 +1,35 @@
+[Defines]
+  PLATFORM_NAME           = bootloader
+  PLATFORM_GUID           = 958464ed-dca3-11ef-8521-b4d5bdcc183d
+  TOOLCHAIN_TAG           = VS2022
+  TARGET_ARCH             = X64
+  PLATFORM_VERSION        = 1.0
+  BUILD_TARGET            = UEFI_APPLICATION
+  BUILD_TARGETS           = RELEASE
+  SUPPORTED_ARCHITECTURES = X64
+  PLATFORM_TYPE           = UEFI
+  DSC_SPECIFICATION              = 0x00010017
+  
+[LibraryClasses]
+  UefiLib | C:\edk2\MdePkg\Library\UefiLib\UefiLib.inf
+  UefiApplicationEntryPoint | C:\edk2\MdePkg\Library\UefiApplicationEntryPoint\UefiApplicationEntryPoint.inf
+  UefiBootServicesTableLib | C:\edk2\MdePkg\Library\UefiBootServicesTableLib\UefiBootServicesTableLib.inf
+  UefiRuntimeServicesTableLib | C:\edk2\MdePkg\Library\UefiRuntimeServicesTableLib\UefiRuntimeServicesTableLib.inf
+  UefiStackCheckLib | C:\edk2\MdePkg\Library\StackCheckLibNull\StackCheckLibNull.inf
+  BaseLib | C:\edk2\MdePkg\Library\BaseLib\BaseLib.inf
+  BaseMemoryLib | C:\edk2\MdePkg\Library\BaseMemoryLib\BaseMemoryLib.inf
+  CpuLib | C:\edk2\MdePkg/Library/BaseCpuLib/BaseCpuLib.inf
+  MemoryAllocationLib | C:\edk2\MdePkg\Library\UefiMemoryAllocationLib\UefiMemoryAllocationLib.inf
+  DevicePathLib | C:\edk2\MdePkg\Library\UefiDevicePathLib\UefiDevicePathLib.inf
+  PrintLib | C:\edk2\MdePkg\Library\BasePrintLib\BasePrintLib.inf
+  PcdLib | C:\edk2\MdePkg\Library\BasePcdLibNull\BasePcdLibNull.inf
+  DebugLib | C:\edk2\MdePkg\Library\BaseDebugLibNull\BaseDebugLibNull.inf
+  RegisterFilterLib | C:\edk2\MdePkg\Library\RegisterFilterLibNull\RegisterFilterLibNull.inf
+  UefiDriverEntryPoint | C:\edk2\MdePkg\Library\UefiDriverEntryPoint\UefiDriverEntryPoint.inf
+
+[Packages]
+  C:\edk2\MdePkg\MdePkg.dec
+  C:\edk2\MdeModulePkg\MdeModulePkg.dec
+
+[Components]
+  C:\Users\nanno\Desktop\uefi\bootloader.inf

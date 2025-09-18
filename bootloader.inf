@@ -1,0 +1,40 @@
+[Defines]
+  INF_VERSION               = 0x00010017
+  BASE_NAME                 = bootloader
+  FILE_GUID                 = 958464ed-dca3-11ef-8521-b4d5bdcc183d
+  MODULE_TYPE               = UEFI_APPLICATION
+  VERSION                   = 1.0
+  ENTRY_POINT               = efi_main
+  COMPONENT_NAME            = "bootloader"
+  SUPPORTED_ARCHITECTURES   = X64
+  BINARY_FILE               = bootloader.efi
+[Protocols]
+  gEfiGraphicsOutputProtocolGuid
+  gEfiSimpleFileSystemProtocolGuid
+  gEfiLoadedImageProtocolGuid
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+[Guids]
+  gEfiFileInfoGuid
+[LibraryClasses]
+  PcdLib
+  UefiLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  UefiRuntimeServicesTableLib
+  UefiStackCheckLib
+  BaseLib
+  BaseMemoryLib
+  CpuLib
+  MemoryAllocationLib
+  DevicePathLib
+  PrintLib
+  DebugLib
+  RegisterFilterLib
+[BuildOptions]
+  *_VS2022_X64_MASM_FLAGS = /safeseh
+[Sources]
+  bootloader.c
+  jump.asm
+  gdt_set.asm
