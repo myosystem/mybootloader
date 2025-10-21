@@ -1,1 +1,0 @@
-C:\Users\nanno\Desktop\uefi\main\Makefile
