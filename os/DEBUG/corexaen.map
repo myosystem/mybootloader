@@ -1,0 +1,94 @@
+ corexaen
+
+ Timestamp is 67979709 (Mon Jan 27 23:24:09 2025)
+
+ Preferred load address is 0000000000000000
+
+ Start         Length     Name                   Class
+ 0001:00000000 00000004H .text                   CODE
+ 0001:00000004 0000113fH .text$mn                CODE
+ 0002:00000000 00000000H .data                   DATA
+ 0002:00000000 000005a0H .rdata                  DATA
+ 0002:000005a0 00000030H .bss                    DATA
+ 0002:000005d0 00000018H .rdata$voltmd           DATA
+ 0002:000005e8 00000098H .rdata$zzzdbg           DATA
+ 0003:00000000 00000048H .pdata                  DATA
+ 0004:00000000 0000005cH .xdata                  DATA
+
+  Address         Publics by Value              Rva+Base               Lib:Object
+
+ 0000:00000000       __AbsoluteZero             0000000000000000     <absolute>
+ 0000:00000000       __arm64x_extra_rfe_table   0000000000000000     <absolute>
+ 0000:00000000       __arm64x_extra_rfe_table_size 0000000000000000     <absolute>
+ 0000:00000000       __arm64x_native_entrypoint 0000000000000000     <absolute>
+ 0000:00000000       __arm64x_redirection_metadata 0000000000000000     <absolute>
+ 0000:00000000       __arm64x_redirection_metadata_count 0000000000000000     <absolute>
+ 0000:00000000       __dynamic_value_reloc_table 0000000000000000     <absolute>
+ 0000:00000000       __enclave_config           0000000000000000     <absolute>
+ 0000:00000000       __guard_check_icall_a64n_fptr 0000000000000000     <absolute>
+ 0000:00000000       __guard_eh_cont_count      0000000000000000     <absolute>
+ 0000:00000000       __guard_eh_cont_table      0000000000000000     <absolute>
+ 0000:00000000       __guard_fids_count         0000000000000000     <absolute>
+ 0000:00000000       __guard_fids_table         0000000000000000     <absolute>
+ 0000:00000000       __guard_flags              0000000000000000     <absolute>
+ 0000:00000000       __guard_iat_count          0000000000000000     <absolute>
+ 0000:00000000       __guard_iat_table          0000000000000000     <absolute>
+ 0000:00000000       __guard_longjmp_count      0000000000000000     <absolute>
+ 0000:00000000       __guard_longjmp_table      0000000000000000     <absolute>
+ 0000:00000000       __hybrid_auxiliary_delayload_iat 0000000000000000     <absolute>
+ 0000:00000000       __hybrid_auxiliary_delayload_iat_copy 0000000000000000     <absolute>
+ 0000:00000000       __hybrid_auxiliary_iat     0000000000000000     <absolute>
+ 0000:00000000       __hybrid_auxiliary_iat_copy 0000000000000000     <absolute>
+ 0000:00000000       __hybrid_code_map          0000000000000000     <absolute>
+ 0000:00000000       __hybrid_code_map_count    0000000000000000     <absolute>
+ 0000:00000000       __hybrid_image_info_bitfield 0000000000000000     <absolute>
+ 0000:00000000       __x64_code_ranges_to_entry_points 0000000000000000     <absolute>
+ 0000:00000000       __x64_code_ranges_to_entry_points_count 0000000000000000     <absolute>
+ 0000:00000000       __ImageBase                0000000000000000     <linker-defined>
+ 0001:00000000       __report_rangecheckfailure 0000000000001000     StackCheckLibNull:StackCheckFunctionsMsvc.obj
+ 0001:00000001       __GSHandlerCheck           0000000000001001     StackCheckLibNull:StackCheckFunctionsMsvc.obj
+ 0001:00000002       __security_check_cookie    0000000000001002     StackCheckLibNull:StackCheckFunctionsMsvc.obj
+ 0001:00000004       _ModuleEntryPoint          0000000000001004 f   UefiApplicationEntryPoint:ApplicationEntryPoint.obj
+ 0001:00000030       ProcessModuleEntryPointList 0000000000001030 f   corexaen:AutoGen.obj
+ 0001:0000010c       InternalPrint              000000000000110c f   UefiLib:UefiLibPrint.obj
+ 0001:000001a4       Print                      00000000000011a4 f   UefiLib:UefiLibPrint.obj
+ 0001:000001d4       StrnLenS                   00000000000011d4 f   BaseLib:SafeString.obj
+ 0001:00000200       BasePrintLibFillBuffer     0000000000001200 f   BasePrintLib:PrintLibInternal.obj
+ 0001:00000234       BasePrintLibSPrintMarker   0000000000001234 f   BasePrintLib:PrintLibInternal.obj
+ 0001:000010e0       BasePrintLibSPrint         00000000000020e0 f   BasePrintLib:PrintLibInternal.obj
+ 0001:00001104       InternalAllocatePool       0000000000002104 f   UefiMemoryAllocationLib:MemoryAllocationLib.obj
+ 0002:00000000       ??_C@_1EK@NKCDBCJL@?$AAB?$AAo?$AAo?$AAt?$AAl?$AAo?$AAa?$AAd?$AAe?$AAr?$AA?5?$AAf?$AAi?$AAn?$AAi@ 0000000000003000     corexaen:os.obj
+ 0002:00000050       ??_C@_1BO@PKIFJNOP@?$AAH?$AAe?$AAl?$AAl?$AAo?$AA?5?$AAW?$AAo?$AAr?$AAl?$AAd?$AA?$CB?$AA?$CB?$AA?6@ 0000000000003050     corexaen:os.obj
+ 0002:00000070       ??_C@_1EI@LHHPFKHO@?$AAS?$AAi?$AAm?$AAp?$AAl?$AAe?$AA?5?$AAO?$AAS?$AA?5?$AAT?$AAe?$AAs?$AAt?$AA?3@ 0000000000003070     corexaen:os.obj
+ 0002:000000b8       ??_C@_1CC@KDAGPCOM@?$AAK?$AAe?$AAy?$AA?5?$AAP?$AAr?$AAe?$AAs?$AAs?$AAe?$AAd?$AA?3?$AA?5?$AA?$CF?$AAc@ 00000000000030b8     corexaen:os.obj
+ 0002:000000e0       ??_C@_1CC@HNKCJBHE@?$AAS?$AAc?$AAa?$AAn?$AA?5?$AAC?$AAo?$AAd?$AAe?$AA?3?$AA?5?$AA0?$AAx?$AA?$CF?$AAx@ 00000000000030e0     corexaen:os.obj
+ 0002:00000108       ??_C@_1BI@MFBJKMKC@?$AAE?$AAx?$AAi?$AAt?$AAi?$AAn?$AAg?$AA?4?$AA?4?$AA?4?$AA?6@ 0000000000003108     corexaen:os.obj
+ 0002:00000120       ??_C@_0O@MLOLIMFM@?$DMnull?5string?$DO@ 0000000000003120     BasePrintLib:PrintLibInternal.obj
+ 0002:00000130       ??_C@_0M@BJJDNPHK@?$DMnull?5guid?$DO@ 0000000000003130     BasePrintLib:PrintLibInternal.obj
+ 0002:00000140       ??_C@_0DB@PMLHLBMO@?$CF08x?9?$CF04x?9?$CF04x?9?$CF02x?$CF02x?9?$CF02x?$CF02@ 0000000000003140     BasePrintLib:PrintLibInternal.obj
+ 0002:00000178       ??_C@_0M@LHGBCIKM@?$DMnull?5time?$DO@ 0000000000003178     BasePrintLib:PrintLibInternal.obj
+ 0002:00000188       ??_C@_0BK@FCPKCIDD@?$CF02d?1?$CF02d?1?$CF04d?5?5?$CF02d?3?$CF02d@ 0000000000003188     BasePrintLib:PrintLibInternal.obj
+ 0002:000001a4       ??_C@_04JIMNDDED@?$CF08X@  00000000000031a4     BasePrintLib:PrintLibInternal.obj
+ 0002:000001ac       ??_C@_02PCIJFNDE@?$AN?6@   00000000000031ac     BasePrintLib:PrintLibInternal.obj
+ 0002:000001b0       ??_C@_01LIIJDEN@?$AN@      00000000000031b0     BasePrintLib:PrintLibInternal.obj
+ 0002:000001c0       mWarningString             00000000000031c0     BasePrintLib:PrintLibInternal.obj
+ 0002:00000290       mErrorString               0000000000003290     BasePrintLib:PrintLibInternal.obj
+ 0002:00000570       mHexStr                    0000000000003570     BasePrintLib:PrintLibInternal.obj
+ 0002:000005a0       ?gRT@@3PEAUEFI_RUNTIME_SERVICES@@EA 00000000000035a0     corexaen:os.obj
+ 0002:000005a8       gST                        00000000000035a8     UefiBootServicesTableLib:UefiBootServicesTableLib.obj
+ 0002:000005b0       gImageHandle               00000000000035b0     UefiBootServicesTableLib:UefiBootServicesTableLib.obj
+ 0002:000005b8       gBS                        00000000000035b8     UefiBootServicesTableLib:UefiBootServicesTableLib.obj
+ 0002:000005c0       gRT                        00000000000035c0     UefiRuntimeServicesTableLib:UefiRuntimeServicesTableLib.obj
+ 0002:000005c8       __security_cookie          00000000000035c8     StackCheckLibNull:StackCheckLibNullMsvc.obj
+ 0002:000005d0       __volatile_metadata        00000000000035d0     <linker-defined>
+
+ entry point at        0001:00000004
+
+ Static symbols
+
+ 0004:00000000       $unwind$ProcessModuleEntryPointList 0000000000005000     corexaen:AutoGen.obj
+ 0004:0000000c       $unwind$InternalPrint      000000000000500c     UefiLib:UefiLibPrint.obj
+ 0004:00000020       $unwind$Print              0000000000005020     UefiLib:UefiLibPrint.obj
+ 0004:00000028       $unwind$BasePrintLibSPrintMarker 0000000000005028     BasePrintLib:PrintLibInternal.obj
+ 0004:0000004c       $unwind$BasePrintLibSPrint 000000000000504c     BasePrintLib:PrintLibInternal.obj
+ 0004:00000054       $unwind$InternalAllocatePool 0000000000005054     UefiMemoryAllocationLib:MemoryAllocationLib.obj

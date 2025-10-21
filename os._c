@@ -1,0 +1,42 @@
+extern "C" {
+#include <Uefi.h>
+#include <Library/UefiBootServicesTableLib.h>
+#include <Library/UefiLib.h>
+#include <Library/MemoryAllocationLib.h>
+}
+#define U(x) ((CHAR16 *)L##x)
+EFI_RUNTIME_SERVICES *gRT;
+EFI_STATUS EFIAPI efi_main(IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE *SystemTable) {
+    Print(U("Bootloader finished, starting OS...\n"));
+    gBS = SystemTable->BootServices;
+    gRT = SystemTable->RuntimeServices;
+    Print(U("Hello World!!\n"));
+    EFI_STATUS Status;
+    EFI_INPUT_KEY Key;
+
+    Print(U("Simple OS Test: Press ESC to exit.\n"));
+
+    while (TRUE) {
+        // Wait for a key to be pressed
+        Status = SystemTable->ConIn->ReadKeyStroke(SystemTable->ConIn, &Key);
+        if (Status == EFI_SUCCESS) {
+            // Print the character or scan code
+            if (Key.UnicodeChar != 0) {
+                Print(U("Key Pressed: %c\n"), Key.UnicodeChar);
+            } else if (Key.ScanCode != 0) {
+                Print(U("Scan Code: 0x%x\n"), Key.ScanCode);
+            }
+
+            // If ESC is pressed (Scan Code 0x17 in UEFI), exit
+            if (Key.ScanCode == 0x17) {
+                Print(U("Exiting...\n"));
+                break;
+            }
+        }
+
+        // Stall for a short time to avoid spamming CPU
+        gBS->Stall(100000); // 100ms delay
+    }
+    gRT->ResetSystem(EfiResetShutdown, EFI_SUCCESS, 0, NULL);
+    return EFI_SUCCESS;
+}

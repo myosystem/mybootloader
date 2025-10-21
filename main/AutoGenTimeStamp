@@ -1,0 +1,16 @@
+C:\Users\nanno\Desktop\uefi\main.inf
+E:\edk2\MdePkg\Library\BasePrintLib\BasePrintLib.inf
+E:\edk2\MdePkg\Library\RegisterFilterLibNull\RegisterFilterLibNull.inf
+C:\Users\nanno\Desktop\uefi\main.c
+E:\edk2\MdePkg\Library\UefiDevicePathLib\UefiDevicePathLib.inf
+E:\edk2\MdePkg\Library\BasePcdLibNull\BasePcdLibNull.inf
+E:\edk2\MdePkg\Library\UefiRuntimeServicesTableLib\UefiRuntimeServicesTableLib.inf
+E:\edk2\MdePkg\Library\UefiLib\UefiLib.inf
+E:\edk2\MdePkg\Library\UefiApplicationEntryPoint\UefiApplicationEntryPoint.inf
+E:\edk2\MdePkg\Library\UefiBootServicesTableLib\UefiBootServicesTableLib.inf
+E:\edk2\MdePkg\Library\UefiMemoryAllocationLib\UefiMemoryAllocationLib.inf
+E:\edk2\MdePkg\Library\StackCheckLibNull\StackCheckLibNull.inf
+E:\edk2\MdePkg\Library\BaseLib\BaseLib.inf
+C:\Users\nanno\Desktop\uefi\main\DEBUG\AutoGen.h
+E:\edk2\MdePkg\Library\BaseDebugLibNull\BaseDebugLibNull.inf
+E:\edk2\MdePkg\Library\BaseMemoryLib\BaseMemoryLib.inf

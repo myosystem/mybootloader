@@ -3,10 +3,10 @@ PUBLIC load_gdt
 .data
 ALIGN 8
 GdtTable        dq 0
-                dq 0x00AF9A000000FFFF     ; 0x08: 64-bit code
-                dq 0x00AF92000000FFFF     ; 0x10: 64-bit data
-                dq 0x00AFFA000000FFFF
-                dq 0x00AFF2000000FFFF
+                dq 000AF9A000000FFFFh     ; 008h: 64-bit code
+                dq 000AF92000000FFFFh     ; 010h: 64-bit data
+                dq 000AFFA000000FFFFh
+                dq 000AFF2000000FFFFh
 GdtTableEnd:
 
 GDTRLabel       dw GdtTableEnd - GdtTable - 1
@@ -19,7 +19,7 @@ load_gdt PROC
     ; mov     rcx, rdi
 
 ;    lea     rax, GdtTable
-;    mov     qword ptr [GDTRLabel + 2], rax    ; GDTR.base ← &GdtTable
+;    mov     qword ptr [GDTRLabel + 2], rax    ; GDTR.base ??&GdtTable
 ;    lea     rax, GDTRLabel
 ;    lgdt    fword ptr [rax]
 
@@ -48,7 +48,7 @@ load_gdt PROC
     ; bts     rax, 16            ; CR0.WP = 1
     ; mov     cr0, rax
     ; mov     ecx, 0C0000080h    ; MSR_IA32_EFER
-    ; rdmsr                      ; EDX:EAX ← EFER
+    ; rdmsr                      ; EDX:EAX ??EFER
     ; bts     eax, 11            ; EFER.NXE = 1
     ; wrmsr
 

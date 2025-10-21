@@ -1,0 +1,56 @@
+#include <Uefi.h>
+#include <Library/UefiBootServicesTableLib.h>
+#include <Library/UefiLib.h>
+#include <Library/MemoryAllocationLib.h>
+#include <Protocol/SimpleFileSystem.h>
+#include <Guid/FileInfo.h>
+#include <Protocol/LoadedImage.h>
+
+EFI_GUID FileInfoGuid = EFI_FILE_INFO_ID;
+#define KERNEL_PATH L"\\EFI\\OS\\kernel.elf"
+
+EFI_STATUS EFIAPI
+efi_main (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE *SystemTable) {
+    EFI_STATUS Status;
+    EFI_FILE_IO_INTERFACE *Volume;
+    EFI_FILE_HANDLE RootDir;
+    EFI_FILE_HANDLE KernelFile;
+    EFI_PHYSICAL_ADDRESS KernelBase = 0;
+    UINTN KernelSize;
+
+    Status = gBS->HandleProtocol(ImageHandle, &gEfiSimpleFileSystemProtocolGuid, (VOID **)&Volume);
+    if (EFI_ERROR(Status)) {
+        Print(L"Failed to locate file system\n");
+        return Status;
+    }
+
+    Status = Volume->OpenVolume(Volume, &RootDir);
+    if (EFI_ERROR(Status)) {
+        Print(L"Failed to open volume\n");
+        return Status;
+    }
+
+    Status = RootDir->Open(RootDir, &KernelFile, KERNEL_PATH, EFI_FILE_MODE_READ, 0);
+    if (EFI_ERROR(Status)) {
+        Print(L"Failed to open kernel\n");
+        return Status;
+    }
+
+    Status = KernelFile->GetInfo(KernelFile, &FileInfoGuid, &KernelSize, NULL);
+    if (EFI_ERROR(Status)) {
+        Print(L"Failed to get kernel size\n");
+        return Status;
+    }
+
+    Status = KernelFile->Read(KernelFile, &KernelSize, (VOID *)(UINTN)KernelBase);
+    if (EFI_ERROR(Status)) {
+        Print(L"Failed to load kernel\n");
+        return Status;
+    }
+
+    typedef void (*KernelEntry)(void);
+    KernelEntry kernel_entry = (KernelEntry)KernelBase;
+    kernel_entry();
+
+    return EFI_SUCCESS;
+}

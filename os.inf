@@ -1,0 +1,31 @@
+[Defines]
+  INF_VERSION               = 0x00010005
+  BASE_NAME                 = corexaen
+  FILE_GUID                 = 32ac5d70-874c-4221-9b23-123a782f84e8
+  MODULE_TYPE               = UEFI_APPLICATION
+  VERSION                   = 1.0
+  ENTRY_POINT               = efi_main
+  COMPONENT_NAME            = "corexaen"
+  SUPPORTED_ARCHITECTURES   = X64
+  BINARY_FILE               = corexaen.efi
+
+[LibraryClasses]
+  PcdLib
+  UefiLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  UefiRuntimeServicesTableLib
+  UefiStackCheckLib
+  BaseLib
+  BaseMemoryLib
+  MemoryAllocationLib
+  DevicePathLib
+  PrintLib
+  DebugLib
+  RegisterFilterLib
+
+[Sources]
+  os.cpp
+
+[Packages]
+  C:\edk2\MdePkg\MdePkg.dec

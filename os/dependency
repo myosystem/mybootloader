@@ -1,0 +1,15 @@
+
+
+!IF EXIST(C:\Users\nanno\Desktop\uefi\os\OUTPUT\AutoGen.c.deps)
+!INCLUDE C:\Users\nanno\Desktop\uefi\os\OUTPUT\AutoGen.c.deps
+!ENDIF
+
+!IF EXIST(C:\Users\nanno\Desktop\uefi\os\OUTPUT\os.c.deps)
+!INCLUDE C:\Users\nanno\Desktop\uefi\os\OUTPUT\os.c.deps
+!ENDIF
+
+!IF EXIST(C:\Users\nanno\Desktop\uefi\os\OUTPUT\os.cpp.deps)
+!INCLUDE C:\Users\nanno\Desktop\uefi\os\OUTPUT\os.cpp.deps
+!ENDIF
+
+               

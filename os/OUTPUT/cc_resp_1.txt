@@ -1,0 +1,1 @@
+  C:\Users\nanno\Desktop\uefi\os\DEBUG\AutoGen.c C:\Users\nanno\Desktop\uefi\os.cpp

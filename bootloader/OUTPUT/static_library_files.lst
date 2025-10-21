@@ -1,0 +1,15 @@
+C:/Users/nanno/Desktop/uefi/bootloader/OUTPUT/bootloader.lib
+C:/edk2/Build/bootloader/RELEASE_VS2022/X64/MdePkg/Library/RegisterFilterLibNull/RegisterFilterLibNull/OUTPUT/FilterLibNull.lib
+C:/edk2/Build/bootloader/RELEASE_VS2022/X64/MdePkg/Library/BaseDebugLibNull/BaseDebugLibNull/OUTPUT/BaseDebugLibNull.lib
+C:/edk2/Build/bootloader/RELEASE_VS2022/X64/MdePkg/Library/BaseMemoryLib/BaseMemoryLib/OUTPUT/BaseMemoryLib.lib
+C:/edk2/Build/bootloader/RELEASE_VS2022/X64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/BaseLib.lib
+C:/edk2/Build/bootloader/RELEASE_VS2022/X64/MdePkg/Library/BasePcdLibNull/BasePcdLibNull/OUTPUT/BasePcdLibNull.lib
+C:/edk2/Build/bootloader/RELEASE_VS2022/X64/MdePkg/Library/UefiBootServicesTableLib/UefiBootServicesTableLib/OUTPUT/UefiBootServicesTableLib.lib
+C:/edk2/Build/bootloader/RELEASE_VS2022/X64/MdePkg/Library/BasePrintLib/BasePrintLib/OUTPUT/BasePrintLib.lib
+C:/edk2/Build/bootloader/RELEASE_VS2022/X64/MdePkg/Library/UefiMemoryAllocationLib/UefiMemoryAllocationLib/OUTPUT/UefiMemoryAllocationLib.lib
+C:/edk2/Build/bootloader/RELEASE_VS2022/X64/MdePkg/Library/UefiDevicePathLib/UefiDevicePathLib/OUTPUT/UefiDevicePathLib.lib
+C:/edk2/Build/bootloader/RELEASE_VS2022/X64/MdePkg/Library/UefiRuntimeServicesTableLib/UefiRuntimeServicesTableLib/OUTPUT/UefiRuntimeServicesTableLib.lib
+C:/edk2/Build/bootloader/RELEASE_VS2022/X64/MdePkg/Library/UefiLib/UefiLib/OUTPUT/UefiLib.lib
+C:/edk2/Build/bootloader/RELEASE_VS2022/X64/MdePkg/Library/UefiApplicationEntryPoint/UefiApplicationEntryPoint/OUTPUT/UefiApplicationEntryPoint.lib
+C:/edk2/Build/bootloader/RELEASE_VS2022/X64/MdePkg/Library/StackCheckLibNull/StackCheckLibNull/OUTPUT/StackCheckLibNull.lib
+C:/edk2/Build/bootloader/RELEASE_VS2022/X64/MdePkg/Library/BaseCpuLib/BaseCpuLib/OUTPUT/BaseCpuLib.lib

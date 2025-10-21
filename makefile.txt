@@ -1,0 +1,10 @@
+E:
+cd edk2
+edksetup.bat
+build -a X64 -t VS2022 -p C:\Users\nanno\Desktop\uefi\bootloader.dsc -b RELEASE
+copy C:\Users\nanno\Desktop\uefi\bootloader\OUTPUT\bootloader.efi y:\EFI\boot\bootx64.efi
+gcc -c -m64 -ffreestanding /mnt/c/Users/nanno/desktop/uefi/os.cpp -o /mnt/c/Users/nanno/desktop/uefi/os.o -masm=intel -std=c++17
+ld -nostdlib /mnt/c/Users/nanno/desktop/uefi/os.o -o /mnt/c/Users/nanno/desktop/uefi/os.img
+objcopy -O binary /mnt/c/Users/nanno/desktop/uefi/os.img /mnt/c/Users/nanno/desktop/uefi/disk.img
+-Wno-deprecated-volatile -fno-threadsafe-statics
+pause

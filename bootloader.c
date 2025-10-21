@@ -1,14 +1,19 @@
 ﻿#include <Uefi.h>
+
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/CpuLib.h>
+
 #include <Protocol/SimpleFileSystem.h>
 #include <Protocol/LoadedImage.h>
 #include <Protocol/GraphicsOutput.h>
+#include <Protocol/DevicePath.h>
+
 #include <Guid/FileInfo.h>
+
 #include <Register/Intel/ArchitecturalMsr.h>
 
 extern void jump_to_address(void* stack_top,void* addr);
@@ -33,21 +38,22 @@ typedef unsigned long long uptr;
 #define KERNEL_BASE_VA  0xFFFFFFFF80000000ull
 #define HHDM_BASE       0xFFFFFF0000000000ULL
 #define HHDM_PML4_INDEX 510
+#define MMIO_BASE 0xFFFFFE8000000000ULL
 static inline u64 AlignDown(u64 x, u64 a) { return x & ~(a - 1); }
 static inline u64 AlignUp  (u64 x, u64 a) { return (x + a - 1) & ~(a - 1); }
 static inline u64 AlignUp2M(u64 x){ return (x + (PAGE_2M-1)) & ~(PAGE_2M-1); }
 typedef struct {
-    unsigned char* buf;
+    unsigned long long* buf;
     u64 bits;
 } PhysBitmap;
 static inline void pb_set(PhysBitmap* bm, UINT64 page_idx) {
-    bm->buf[page_idx >> 3] |=  (UINT8)(1u << (page_idx & 7));
+    bm->buf[page_idx >> 6] |=  (UINT64)(1ull << (page_idx & 63));
 }
 static inline void pb_clear(PhysBitmap* bm, UINT64 page_idx) {
-    bm->buf[page_idx >> 3] &= (UINT8)~(1u << (page_idx & 7));
+    bm->buf[page_idx >> 6] &= (UINT64)~(1ull << (page_idx & 63));
 }
 static inline BOOLEAN pb_test(const PhysBitmap* bm, UINT64 page_idx) {
-    return (BOOLEAN)((bm->buf[page_idx >> 3] >> (page_idx & 7)) & 1u);
+    return (BOOLEAN)((bm->buf[page_idx >> 6] >> (page_idx & 63)) & 1ull);
 }
 PhysBitmap phys_bitmap;
 static void pb_mark_used_range(PhysBitmap* bm, UINT64 phys_start, UINT64 bytes) {
@@ -301,7 +307,7 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
         }
     }
     u64 total_pages = (top + PAGE_4K - 1) / PAGE_4K;
-    u64 bitmap_size = (total_pages + 7) / 8;
+    u64 bitmap_size = (total_pages + 63) / 64 * 8;
     u64 bitmap_pages = (bitmap_size + PAGE_4K - 1) / PAGE_4K;
     EFI_PHYSICAL_ADDRESS bitmap_phys;
     Print(L"[+] Top of used phys memory: 0x%lx, total pages: %lu, bitmap size: %lu bytes (%lu pages)\n",
@@ -309,7 +315,7 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
     st = gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, bitmap_pages, &bitmap_phys);
     if (EFI_ERROR(st)) { gBS->FreePool(mm); return st; }
     SetMem((VOID*)(uptr)bitmap_phys, bitmap_pages * PAGE_4K, 0xFF);
-    phys_bitmap.buf = (UINT8*)(uptr)bitmap_phys;
+    phys_bitmap.buf = (UINT64*)(uptr)bitmap_phys;
     phys_bitmap.bits = total_pages;
     pb_mark_used_range(&phys_bitmap, 0, bitmap_pages * PAGE_4K); // 비트맵 영역은 사용중
     // 3) 아이덴티티 매핑: UEFI가 인지한 모든 영역
@@ -333,6 +339,7 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
         if (EFI_ERROR(st)) { gBS->FreePool(mm); return st; }
     }
 
+    *out_pml4_phys = pml4_phys;
     // 4) HHDM(physmap) 설치: RAM 타입만 2MiB로 쫙 (U=0, RW, PS, G, NX)
     {
         EFI_PHYSICAL_ADDRESS hhdm_pdpt_phys;
@@ -369,17 +376,26 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
     }
 
     gBS->FreePool(mm);
-    *out_pml4_phys = pml4_phys;
     return EFI_SUCCESS;
 }
+typedef struct {
+    UINT8  type;        // 1 = AHCI/SATA, 2 = NVMe, 3 = USB MSC ...
+    UINT16 pci_bus;     // Bus 번호 (UEFI는 안 줄 수 있음 → 보통 0)
+    UINT16 pci_slot;
+    UINT16 pci_func;
+    UINT32 port_or_ns;  // AHCI 포트번호, NVMe NSID, USB 포트번호
+} boot_device_info_t;
+
 typedef struct {
     UINT64 framebufferAddr;
     UINT32 framebufferWidth;
     UINT32 framebufferHeight;
     UINT32 framebufferPitch;
+    UINT32 framebufferFormat;
     UINT64 physbm;
     UINT64 physbm_size;
     void* rsdp;
+    boot_device_info_t bootdev;
 } BootInfo;
 
 static EFI_GUID ACPI_20_TABLE_GUID = { 0x8868e871, 0xe4f1, 0x11d3, {0xbc, 0x22, 0x00, 0x80, 0xc7, 0x3c, 0x88, 0x81} };
@@ -428,6 +444,70 @@ VOID PrintStatusAndWait(EFI_STATUS Status) {
     Print(L"[!] Waiting for 50 seconds...\n");
     gBS->Stall(50000000ULL);
 }
+#define DevicePathType(a)        (((EFI_DEVICE_PATH_PROTOCOL *)(a))->Type)
+#define DevicePathSubType(a)     (((EFI_DEVICE_PATH_PROTOCOL *)(a))->SubType)
+#define IsDevicePathEnd(a)       (DevicePathType(a) == END_DEVICE_PATH_TYPE && \
+                                  DevicePathSubType(a) == END_ENTIRE_DEVICE_PATH_SUBTYPE)
+#define NextDevicePathNode(a)    ((EFI_DEVICE_PATH_PROTOCOL *)((UINT8 *)(a) + \
+                                  (((EFI_DEVICE_PATH_PROTOCOL *)(a))->Length[0] + \
+                                   ((EFI_DEVICE_PATH_PROTOCOL *)(a))->Length[1] * 256)))
+
+EFI_STATUS FillBootDeviceInfo(EFI_HANDLE DeviceHandle, boot_device_info_t *info) {
+    EFI_STATUS Status;
+    EFI_DEVICE_PATH_PROTOCOL *DevicePath;
+
+    // 1. Device Path 얻기 (장치 종류 판별)
+    Status = gBS->HandleProtocol(DeviceHandle, &gEfiDevicePathProtocolGuid, (VOID**)&DevicePath);
+    if (EFI_ERROR(Status)) {
+        return Status;
+    }
+
+    // 초기화
+    info->type       = 0;
+    info->pci_bus    = 0;
+    info->pci_slot   = 0;
+    info->pci_func   = 0;
+    info->port_or_ns = 0;
+
+    EFI_DEVICE_PATH_PROTOCOL *Node = DevicePath;
+
+    while (!IsDevicePathEnd(Node)) {
+        if (DevicePathType(Node) == MESSAGING_DEVICE_PATH) {
+            switch (DevicePathSubType(Node)) {
+                case MSG_SATA_DP: {  // SATA / AHCI
+                    SATA_DEVICE_PATH *Sata = (SATA_DEVICE_PATH*)Node;
+                    info->type       = 1;
+                    info->port_or_ns = Sata->HBAPortNumber;
+                    break;
+                }
+                case MSG_NVME_NAMESPACE_DP: { // NVMe
+                    NVME_NAMESPACE_DEVICE_PATH *Nvme = (NVME_NAMESPACE_DEVICE_PATH*)Node;
+                    info->type       = 2;
+                    info->port_or_ns = Nvme->NamespaceId;
+                    break;
+                }
+                case MSG_USB_DP: { // USB
+                    USB_DEVICE_PATH *Usb = (USB_DEVICE_PATH*)Node;
+                    info->type       = 3;
+                    info->port_or_ns = Usb->ParentPortNumber;
+                    break;
+                }
+            }
+        }
+        else if (DevicePathType(Node) == HARDWARE_DEVICE_PATH &&
+                 DevicePathSubType(Node) == HW_PCI_DP) {
+            PCI_DEVICE_PATH *PciNode = (PCI_DEVICE_PATH*)Node;
+            // UEFI DevicePath는 Bus 번호는 명시 안 해줄 수도 있음
+            info->pci_slot = PciNode->Device;
+            info->pci_func = PciNode->Function;
+        }
+
+        Node = NextDevicePathNode(Node);
+    }
+
+    return EFI_SUCCESS;
+}
+
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
     EFI_STATUS Status;
     EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *FileSystem;
@@ -547,22 +627,42 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
         return Status;
     }
 
-    Info->framebufferAddr   = Graphics->Mode->FrameBufferBase;
+    Info->framebufferAddr   = (UINT64)Graphics->Mode->FrameBufferBase + MMIO_BASE;
     Info->framebufferWidth  = ModeInfo->HorizontalResolution;
     Info->framebufferHeight = ModeInfo->VerticalResolution;
     Info->framebufferPitch  = ModeInfo->PixelsPerScanLine;
+    Info->framebufferFormat = ModeInfo->PixelFormat;
     Info->physbm           = (u64)phys_bitmap.buf;
     Info->physbm_size      = (u64)phys_bitmap.bits;
     Info->rsdp              = FindAcpiTable();
-    Status = MapRangeVaToPa(pml4_phys, Info->framebufferAddr, Info->framebufferAddr, Info->framebufferHeight * Info->framebufferPitch * 4, P | RW | G | PCD | PWT);
+    Status = FillBootDeviceInfo(LoadedImage->DeviceHandle, &Info->bootdev);
+    if (EFI_ERROR(Status)) {
+        Print(L"[-] Failed to get boot device info\n");
+        PrintStatusAndWait(Status);
+        return Status;
+    }
+    Print(L"[+] Boot device type: %u, PCI %u:%u:%u, port/ns: %u\n",
+          Info->bootdev.type,
+          Info->bootdev.pci_bus,
+          Info->bootdev.pci_slot,
+          Info->bootdev.pci_func,
+          Info->bootdev.port_or_ns);
+    Status = MapRangeVaToPa(pml4_phys, Info->framebufferAddr, Graphics->Mode->FrameBufferBase, Info->framebufferHeight * Info->framebufferPitch * 4, P | RW | G | PCD | PWT);
     if (EFI_ERROR(Status)) {
         Print(L"[-] Failed to map framebuffer memory\n");
         PrintStatusAndWait(Status);
         return Status;
     }
+    UINT64 stack_top;
+    Status = gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, EFI_SIZE_TO_PAGES(0x10000), (EFI_PHYSICAL_ADDRESS*)&stack_top);
+    if (EFI_ERROR(Status)) {
+        Print(L"[-] Failed to allocate stack\n");
+        PrintStatusAndWait(Status);
+        return Status;
+    }
     Status = MapRangeVaToPa(pml4_phys,
-                               0x0000000000070000,  // VA (스택을 쓰려는 가상주소)
-                               0x0000000000070000,  // PA (실제 물리주소)
+                               0xFFFFFFFFFFF00000ull,  // VA (스택을 쓰려는 가상주소)
+                               stack_top,  // PA (실제 물리주소)
                                0x10000,             // 길이 64KiB
                                P | RW | G);
                                if (EFI_ERROR(Status)) {
@@ -598,7 +698,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     //*(BootInfo*)(UINTN)0x200000 = *Info;
     load_gdt((void*)pml4_phys);
     // Jump to OS
-    void* stack_top = (void*)(0x70000 + 0x10000);
-    jump_to_address(stack_top,(void*)KERNEL_BASE_VA);
+    jump_to_address((void*)(0xFFFFFFFFFFF00000ull + 0x10000),(void*)KERNEL_BASE_VA);
     return EFI_SUCCESS;
 }
