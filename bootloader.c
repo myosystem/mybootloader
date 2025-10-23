@@ -680,9 +680,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     Print(L"PML4[510] = %lx\n", pml4e);
     Print(L"PDPT[0] = %lx\n", pdpte0);
     Print(L" PD[2] = %lx\n", pde2);
-    //gBS->Stall(5000000ULL);
-    //CpuSleep();
-    // Exit boot services
     UINTN MapSize = 0, MapKey, DescSize;
     UINT32 DescVersion;
     gBS->GetMemoryMap(&MapSize, NULL, &MapKey, &DescSize, &DescVersion);
@@ -694,8 +691,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
         PrintStatusAndWait(Status);
         return Status;
     }
-
-    //*(BootInfo*)(UINTN)0x200000 = *Info;
     load_gdt((void*)pml4_phys);
     // Jump to OS
     jump_to_address((void*)(0xFFFFFFFFFFF00000ull + 0x10000),(void*)KERNEL_BASE_VA);
