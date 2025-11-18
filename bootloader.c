@@ -11,10 +11,13 @@
 #include <Protocol/LoadedImage.h>
 #include <Protocol/GraphicsOutput.h>
 #include <Protocol/DevicePath.h>
-
+#include <Protocol/PciIo.h>
+#include <Library/DevicePathLib.h>
 #include <Guid/FileInfo.h>
 
 #include <Register/Intel/ArchitecturalMsr.h>
+
+#include <IndustryStandard/Pci.h>
 
 extern void jump_to_address(void* stack_top,void* addr);
 extern void load_gdt(void* pml4_phys);
@@ -451,7 +454,11 @@ VOID PrintStatusAndWait(EFI_STATUS Status) {
 #define NextDevicePathNode(a)    ((EFI_DEVICE_PATH_PROTOCOL *)((UINT8 *)(a) + \
                                   (((EFI_DEVICE_PATH_PROTOCOL *)(a))->Length[0] + \
                                    ((EFI_DEVICE_PATH_PROTOCOL *)(a))->Length[1] * 256)))
-
+#define BOOTDEV_UNKNOWN 0
+#define BOOTDEV_AHCI    1
+#define BOOTDEV_NVME    2
+#define BOOTDEV_USB     3
+#define BOOTDEV_IDE     4
 EFI_STATUS FillBootDeviceInfo(EFI_HANDLE DeviceHandle, boot_device_info_t *info) {
     EFI_STATUS Status;
     EFI_DEVICE_PATH_PROTOCOL *DevicePath;
@@ -476,19 +483,25 @@ EFI_STATUS FillBootDeviceInfo(EFI_HANDLE DeviceHandle, boot_device_info_t *info)
             switch (DevicePathSubType(Node)) {
                 case MSG_SATA_DP: {  // SATA / AHCI
                     SATA_DEVICE_PATH *Sata = (SATA_DEVICE_PATH*)Node;
-                    info->type       = 1;
+                    info->type       = BOOTDEV_AHCI;
                     info->port_or_ns = Sata->HBAPortNumber;
+                    break;
+                }
+                case 0x03: { // VMware AHCI가 이걸 쓸 수 있음
+                    ATAPI_DEVICE_PATH *Ata = (ATAPI_DEVICE_PATH*)Node;
+                    info->type = BOOTDEV_AHCI;
+                    info->port_or_ns = Ata->PrimarySecondary;
                     break;
                 }
                 case MSG_NVME_NAMESPACE_DP: { // NVMe
                     NVME_NAMESPACE_DEVICE_PATH *Nvme = (NVME_NAMESPACE_DEVICE_PATH*)Node;
-                    info->type       = 2;
+                    info->type       = BOOTDEV_NVME;
                     info->port_or_ns = Nvme->NamespaceId;
                     break;
                 }
                 case MSG_USB_DP: { // USB
                     USB_DEVICE_PATH *Usb = (USB_DEVICE_PATH*)Node;
-                    info->type       = 3;
+                    info->type       = BOOTDEV_USB;
                     info->port_or_ns = Usb->ParentPortNumber;
                     break;
                 }
@@ -507,7 +520,54 @@ EFI_STATUS FillBootDeviceInfo(EFI_HANDLE DeviceHandle, boot_device_info_t *info)
 
     return EFI_SUCCESS;
 }
+EFI_STATUS FixBootDeviceInfo(EFI_HANDLE ImageHandle, boot_device_info_t *info) {
+    EFI_STATUS Status;
+    EFI_LOADED_IMAGE_PROTOCOL *Loaded = NULL;
 
+    Status = gBS->HandleProtocol(ImageHandle, &gEfiLoadedImageProtocolGuid, (VOID**)&Loaded);   // LoadedImage
+    if (EFI_ERROR(Status) || !Loaded) return Status;
+
+    EFI_HANDLE BootDev = Loaded->DeviceHandle;
+
+    EFI_DEVICE_PATH_PROTOCOL *DevPath = NULL;
+    Status = gBS->HandleProtocol(BootDev, &gEfiDevicePathProtocolGuid, (VOID**)&DevPath);      // DevicePath
+    if (EFI_ERROR(Status) || !DevPath) return Status;
+
+    EFI_DEVICE_PATH_PROTOCOL *Walker = DevPath;
+    EFI_HANDLE Controller = NULL;
+    Status = gBS->LocateDevicePath(&gEfiPciIoProtocolGuid, &Walker, &Controller);              // PCI controller
+    if (EFI_ERROR(Status) || !Controller) return EFI_UNSUPPORTED;
+
+    EFI_PCI_IO_PROTOCOL *PciIo = NULL;
+    Status = gBS->HandleProtocol(Controller, &gEfiPciIoProtocolGuid, (VOID**)&PciIo);          // PciIo
+    if (EFI_ERROR(Status) || !PciIo) return Status;
+
+    UINTN Seg, Bus, Dev, Func;
+    Status = PciIo->GetLocation(PciIo, &Seg, &Bus, &Dev, &Func);                                // real location
+    if (EFI_ERROR(Status)) return Status;
+
+    info->pci_bus  = (UINT16)Bus;                                                              // store
+    info->pci_slot = (UINT16)Dev;
+    info->pci_func = (UINT16)Func;
+
+    PCI_TYPE00 Hdr;
+    Status = PciIo->Pci.Read(PciIo, EfiPciIoWidthUint32, 0, sizeof(Hdr)/sizeof(UINT32), &Hdr); // config
+    if (EFI_ERROR(Status)) return EFI_SUCCESS;
+
+    UINT8 class = Hdr.Hdr.ClassCode[2];
+    UINT8 sub   = Hdr.Hdr.ClassCode[1];
+    UINT8 prog  = Hdr.Hdr.ClassCode[0];
+
+    if (info->type == 0) {                                                                      // minimal correction
+        if (class == 0x01 && sub == 0x08)
+            info->type = 2;                                                                     // NVMe
+        else if (class == 0x01 && sub == 0x06 && prog == 0x01)
+            info->type = 1;                                                                     // AHCI
+        else if (class == 0x0C && sub == 0x03)
+            info->type = 3;                                                                     // USB(xHCI)
+    }
+    return EFI_SUCCESS;
+}
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
     EFI_STATUS Status;
     EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *FileSystem;
@@ -635,12 +695,14 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     Info->physbm           = (u64)phys_bitmap.buf;
     Info->physbm_size      = (u64)phys_bitmap.bits;
     Info->rsdp              = FindAcpiTable();
+    gBS->HandleProtocol(ImageHandle, &gEfiLoadedImageProtocolGuid, (VOID**)&LoadedImage);
     Status = FillBootDeviceInfo(LoadedImage->DeviceHandle, &Info->bootdev);
     if (EFI_ERROR(Status)) {
         Print(L"[-] Failed to get boot device info\n");
         PrintStatusAndWait(Status);
         return Status;
     }
+    FixBootDeviceInfo(ImageHandle, &Info->bootdev);
     Print(L"[+] Boot device type: %u, PCI %u:%u:%u, port/ns: %u\n",
           Info->bootdev.type,
           Info->bootdev.pci_bus,

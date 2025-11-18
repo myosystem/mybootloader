@@ -12,6 +12,7 @@
   gEfiGraphicsOutputProtocolGuid
   gEfiSimpleFileSystemProtocolGuid
   gEfiLoadedImageProtocolGuid
+  gEfiPciIoProtocolGuid
 [Packages]
   MdePkg/MdePkg.dec
   MdeModulePkg/MdeModulePkg.dec
