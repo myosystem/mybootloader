@@ -39,3 +39,5 @@
   bootloader.c
   jump.asm
   gdt_set.asm
+  hlt.asm
+  sti.asm

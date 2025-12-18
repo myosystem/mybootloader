@@ -1,4 +1,5 @@
 .code
+PUBLIC jump_to_address
 jump_to_address PROC
     mov rsp, rcx
     jmp rdx

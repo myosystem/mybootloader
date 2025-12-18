@@ -26,10 +26,11 @@
   DebugLib | C:\edk2\MdePkg\Library\BaseDebugLibNull\BaseDebugLibNull.inf
   RegisterFilterLib | C:\edk2\MdePkg\Library\RegisterFilterLibNull\RegisterFilterLibNull.inf
   UefiDriverEntryPoint | C:\edk2\MdePkg\Library\UefiDriverEntryPoint\UefiDriverEntryPoint.inf
+  StackCheckLib|MdePkg/Library/StackCheckLibNull/StackCheckLibNull.inf
 
 [Packages]
   C:\edk2\MdePkg\MdePkg.dec
   C:\edk2\MdeModulePkg\MdeModulePkg.dec
 
 [Components]
-  C:\Users\nanno\Desktop\uefi\bootloader.inf
+  myosystem\mybootloader\bootloader.inf

@@ -1,4 +1,4 @@
-﻿#include <Uefi.h>
+#include <Uefi.h>
 
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiLib.h>
@@ -14,6 +14,7 @@
 #include <Protocol/PciIo.h>
 #include <Library/DevicePathLib.h>
 #include <Guid/FileInfo.h>
+#include <Guid/GlobalVariable.h>
 
 #include <Register/Intel/ArchitecturalMsr.h>
 
@@ -21,6 +22,8 @@
 
 extern void jump_to_address(void* stack_top,void* addr);
 extern void load_gdt(void* pml4_phys);
+extern void hlt_loop(void);
+extern void stint();
 typedef unsigned long long u64;
 typedef unsigned long long uptr;
 
@@ -36,8 +39,8 @@ typedef unsigned long long uptr;
 
 #define PAGE_4K  (4096ull)
 #define PAGE_2M  (2ull * 1024 * 1024)
-#define PT_ADDR_MASK 0x000FFFFFFFFFF000ull  // 하위 12비트 플래그 마스크
-#define PD_2M_MASK   0x000FFFFFFFE00000ull  // 2MiB 대페이지 물리주소 마스크
+#define PT_ADDR_MASK 0x000FFFFFFFFFF000ull  // ?? 12?? ??? ???
+#define PD_2M_MASK   0x000FFFFFFFE00000ull  // 2MiB ???? ???? ???
 #define KERNEL_BASE_VA  0xFFFFFFFF80000000ull
 #define HHDM_BASE       0xFFFFFF0000000000ULL
 #define HHDM_PML4_INDEX 510
@@ -71,28 +74,28 @@ static void pb_mark_free_range(PhysBitmap* bm, UINT64 phys_start, UINT64 bytes) 
     if (last > bm->bits) last = bm->bits;
     for (UINT64 i = first; i < last; ++i) pb_clear(bm, i);
 }
-// UEFI에서 4KiB 물리 페이지 하나 할당하고 0으로 클리어
+// UEFI?? 4KiB ?? ??? ?? ???? 0?? ???
 static EFI_STATUS AllocPhysPage(EFI_PHYSICAL_ADDRESS* OutPhys) {
     EFI_STATUS st = gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, OutPhys);
     if (EFI_ERROR(st)) return st;
     pb_mark_used_range(&phys_bitmap, *OutPhys, PAGE_4K);
-    // 대부분의 펌웨어가 저주소 아이덴티티라 물리=가상 캐스팅으로 접근 가능
+    // ???? ???? ??? ?????? ??=?? ????? ?? ??
     SetMem((VOID*)(uptr)(*OutPhys), PAGE_4K, 0);
     return EFI_SUCCESS;
 }
 
 static inline volatile u64* PhysToPtr(EFI_PHYSICAL_ADDRESS phys) {
-    return (volatile u64*)(uptr)phys; // 아이덴티티 가정
+    return (volatile u64*)(uptr)phys; // ????? ??
 }
 static inline volatile u64* Tbl(u64 phys){ return PhysToPtr(phys & PT_ADDR_MASK); }
 
-// 인덱스 추출 (IA-32e 4레벨)
+// ??? ?? (IA-32e 4??)
 static inline u64 IdxPml4(u64 va) { return (va >> 39) & 0x1FF; }
 static inline u64 IdxPdpt(u64 va) { return (va >> 30) & 0x1FF; }
 static inline u64 IdxPd  (u64 va) { return (va >> 21) & 0x1FF; }
 static inline u64 IdxPt  (u64 va) { return (va >> 12) & 0x1FF; }
 
-// PML4 -> PDPT 확보
+// PML4 -> PDPT ??
 static EFI_STATUS EnsurePdpt(EFI_PHYSICAL_ADDRESS pml4_phys, u64 va, EFI_PHYSICAL_ADDRESS* out_pdpt_phys) {
     volatile u64* pml4 = PhysToPtr(pml4_phys);
     u64 i = IdxPml4(va);
@@ -105,7 +108,7 @@ static EFI_STATUS EnsurePdpt(EFI_PHYSICAL_ADDRESS pml4_phys, u64 va, EFI_PHYSICA
     return EFI_SUCCESS;
 }
 
-// PDPT -> PD 확보
+// PDPT -> PD ??
 static EFI_STATUS EnsurePd(EFI_PHYSICAL_ADDRESS pml4_phys, u64 va, EFI_PHYSICAL_ADDRESS* out_pd_phys) {
     EFI_STATUS st;
     EFI_PHYSICAL_ADDRESS pdpt_phys;
@@ -121,7 +124,7 @@ static EFI_STATUS EnsurePd(EFI_PHYSICAL_ADDRESS pml4_phys, u64 va, EFI_PHYSICAL_
     return EFI_SUCCESS;
 }
 
-// PD -> PT 확보 (4KiB용). 이미 2MiB 대페이지면 충돌.
+// PD -> PT ?? (4KiB?). ?? 2MiB ????? ??.
 static EFI_STATUS EnsurePt(EFI_PHYSICAL_ADDRESS pml4_phys, u64 va, EFI_PHYSICAL_ADDRESS* out_pt_phys) {
     EFI_STATUS st;
     EFI_PHYSICAL_ADDRESS pd_phys;
@@ -131,15 +134,15 @@ static EFI_STATUS EnsurePt(EFI_PHYSICAL_ADDRESS pml4_phys, u64 va, EFI_PHYSICAL_
     if ((pd[i] & P) == 0) {
         EFI_PHYSICAL_ADDRESS newp;
         st = AllocPhysPage(&newp); if (EFI_ERROR(st)) return st;
-        pd[i] = (newp & PT_ADDR_MASK) | P | RW; // 하위 PT를 가리킴
+        pd[i] = (newp & PT_ADDR_MASK) | P | RW; // ?? PT? ???
     } else if (pd[i] & PS) {
-        return EFI_DEVICE_ERROR; // 이미 2MiB 매핑 존재
+        return EFI_DEVICE_ERROR; // ?? 2MiB ?? ??
     }
     *out_pt_phys = (pd[i] & PT_ADDR_MASK);
     return EFI_SUCCESS;
 }
 
-// 2MiB 매핑
+// 2MiB ??
 static EFI_STATUS Map2M(EFI_PHYSICAL_ADDRESS pml4_phys, u64 va, u64 pa, u64 flags) {
     if ((va & (PAGE_2M - 1)) || (pa & (PAGE_2M - 1))) return EFI_INVALID_PARAMETER;
     EFI_STATUS st;
@@ -151,7 +154,7 @@ static EFI_STATUS Map2M(EFI_PHYSICAL_ADDRESS pml4_phys, u64 va, u64 pa, u64 flag
     return EFI_SUCCESS;
 }
 
-// 4KiB 매핑
+// 4KiB ??
 static EFI_STATUS Map4K(EFI_PHYSICAL_ADDRESS pml4_phys, u64 va, u64 pa, u64 flags) {
     if ((va & (PAGE_4K - 1)) || (pa & (PAGE_4K - 1))) return EFI_INVALID_PARAMETER;
     EFI_STATUS st;
@@ -172,7 +175,7 @@ static EFI_STATUS EnsureHhdmPdpt(EFI_PHYSICAL_ADDRESS pml4_phys, EFI_PHYSICAL_AD
     *out_pdpt_phys = (pml4[HHDM_PML4_INDEX] & PT_ADDR_MASK);
     return EFI_SUCCESS;
 }
-// 범위를 아이덴티티로 매핑 (앞/뒤 가장자리는 4KiB, 가운데는 2MiB)
+// ??? ?????? ?? (?/? ????? 4KiB, ???? 2MiB)
 static EFI_STATUS MapIdentityRange(EFI_PHYSICAL_ADDRESS pml4_phys, u64 phys_start, u64 bytes, u64 flags) {
     u64 cur = phys_start;
     u64 end = phys_start + bytes;
@@ -197,26 +200,26 @@ EFI_STATUS MapRangeVaToPa(EFI_PHYSICAL_ADDRESS pml4_phys,
     EFI_STATUS st;
     u64 cur_va = va;
     u64 cur_pa = pa;
-    u64 end_va = va + bytes; // bytes가 클 때 overflow 방지하려면 체크 추가 가능
+    u64 end_va = va + bytes; // bytes? ? ? overflow ????? ?? ?? ??
 
-    // 1) 앞 가장자리: 2MiB 정렬이 서로 맞을 때까지 4KiB로
-    //    (둘 다 2MiB 경계에 있어야 2MiB 대페이지 가능)
+    // 1) ? ????: 2MiB ??? ?? ?? ??? 4KiB?
+    //    (? ? 2MiB ??? ??? 2MiB ???? ??)
     while (cur_va < end_va) {
-        // 조건이 되면 곧바로 2MiB 구간으로 넘어간다
+        // ??? ?? ??? 2MiB ???? ????
         if ( ((cur_va | cur_pa) % PAGE_2M == 0) && ((end_va - cur_va) >= PAGE_2M) )
             break;
 
-        // 2MiB까지 남은 거리 중 작은 쪽, 또는 남은 전체를 4KiB 단위로 메우자
+        // 2MiB?? ?? ?? ? ?? ?, ?? ?? ??? 4KiB ??? ???
         u64 next2m_va = AlignUp(cur_va, PAGE_2M);
         u64 next2m_pa = AlignUp(cur_pa, PAGE_2M);
         u64 edge      = next2m_va - cur_va;
         u64 edge_pa   = next2m_pa - cur_pa;
         if (edge_pa < edge) edge = edge_pa;
-        if (edge == 0) edge = PAGE_4K;              // 최소 한 페이지
+        if (edge == 0) edge = PAGE_4K;              // ?? ? ???
         if (edge > (end_va - cur_va)) edge = end_va - cur_va;
 
-        // 4KiB로 edge 구간 매핑
-        u64 to_map = edge & ~(PAGE_4K - 1);         // 4KiB 배수로 내림
+        // 4KiB? edge ?? ??
+        u64 to_map = edge & ~(PAGE_4K - 1);         // 4KiB ??? ??
         if (to_map == 0) to_map = PAGE_4K;
         for (u64 off = 0; off < to_map; off += PAGE_4K) {
             st = Map4K(pml4_phys, cur_va + off, cur_pa + off, flags);
@@ -226,9 +229,9 @@ EFI_STATUS MapRangeVaToPa(EFI_PHYSICAL_ADDRESS pml4_phys,
         cur_pa += to_map;
     }
 
-    // 2) 가운데: 2MiB 블록으로 쾅쾅
+    // 2) ???: 2MiB ???? ??
     while ((end_va - cur_va) >= PAGE_2M) {
-        // 이 시점에는 cur_va/cur_pa가 둘 다 2MiB 정렬돼 있어야 한다
+        // ? ???? cur_va/cur_pa? ? ? 2MiB ??? ??? ??
         if ( (cur_va % PAGE_2M) || (cur_pa % PAGE_2M) ) break;
         st = Map2M(pml4_phys, cur_va, cur_pa, flags);
         if (EFI_ERROR(st)) return st;
@@ -236,7 +239,7 @@ EFI_STATUS MapRangeVaToPa(EFI_PHYSICAL_ADDRESS pml4_phys,
         cur_pa += PAGE_2M;
     }
 
-    // 3) 뒤 가장자리: 남은 건 4KiB로 마무리
+    // 3) ? ????: ?? ? 4KiB? ???
     while (cur_va < end_va) {
         st = Map4K(pml4_phys, cur_va, cur_pa, flags);
         if (EFI_ERROR(st)) return st;
@@ -246,8 +249,8 @@ EFI_STATUS MapRangeVaToPa(EFI_PHYSICAL_ADDRESS pml4_phys,
 
     return EFI_SUCCESS;
 }
-// UEFI 메모리 속성 -> 페이지 플래그 (단순화)
-// MMIO/UC는 비캐시(PCD|PWT), 그 외는 캐시 사용.
+// UEFI ??? ?? -> ??? ??? (???)
+// MMIO/UC? ???(PCD|PWT), ? ?? ?? ??.
 static u64 FlagsFromDesc(const EFI_MEMORY_DESCRIPTOR* d) {
     u64 f = RW | G; // supervisor, global
     BOOLEAN is_mmio = (d->Type == EfiMemoryMappedIO) || (d->Type == EfiMemoryMappedIOPortSpace);
@@ -261,7 +264,7 @@ static BOOLEAN IsMmioType(UINT32 t){
 static BOOLEAN IsRamType(UINT32 t){
     return t==EfiConventionalMemory || t==EfiLoaderCode || t==EfiLoaderData ||
            t==EfiBootServicesCode   || t==EfiBootServicesData ||
-           t==EfiACPIReclaimMemory; // 선택
+           t==EfiACPIReclaimMemory; // ??
 }
 static u64 FlagsForRam(void){ return RW | G | NX; }
 static u64 FlagsForMmio(void){ return RW | G | PCD | PWT | NX; }
@@ -274,20 +277,20 @@ static EFI_STATUS MapIdentityRange4K(EFI_PHYSICAL_ADDRESS pml4_phys, u64 phys, u
     }
     return EFI_SUCCESS;
 }
-// 공개 API: 메모리맵을 읽어 UEFI가 인지한 모든 영역을 아이덴티티 매핑
+// ?? API: ????? ?? UEFI? ??? ?? ??? ????? ??
 EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) {
     EFI_STATUS st;
 
-    // 1) 새 PML4
+    // 1) ? PML4
     EFI_PHYSICAL_ADDRESS pml4_phys = 0;
     st = AllocPhysPage(&pml4_phys); if (EFI_ERROR(st)) return st;
 
-    // 2) 메모리맵 가져오기
+    // 2) ???? ????
     UINTN mmSize = 0, mapKey = 0, descSize = 0; UINT32 descVer = 0;
     st = gBS->GetMemoryMap(&mmSize, NULL, &mapKey, &descSize, &descVer);
     if (st != EFI_BUFFER_TOO_SMALL) return st;
 
-    mmSize += 2 * descSize; // 여유
+    mmSize += 2 * descSize; // ??
     EFI_MEMORY_DESCRIPTOR* mm = NULL;
     st = gBS->AllocatePool(EfiLoaderData, mmSize, (VOID**)&mm);
     if (EFI_ERROR(st)) return st;
@@ -320,9 +323,9 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
     SetMem((VOID*)(uptr)bitmap_phys, bitmap_pages * PAGE_4K, 0xFF);
     phys_bitmap.buf = (UINT64*)(uptr)bitmap_phys;
     phys_bitmap.bits = total_pages;
-    pb_mark_used_range(&phys_bitmap, 0, bitmap_pages * PAGE_4K); // 비트맵 영역은 사용중
-    // 3) 아이덴티티 매핑: UEFI가 인지한 모든 영역
-    //    - RAM/코드/데이터: 캐시 on + NX 기본
+    pb_mark_used_range(&phys_bitmap, 0, bitmap_pages * PAGE_4K); // ??? ??? ???
+    // 3) ????? ??: UEFI? ??? ?? ??
+    //    - RAM/??/???: ?? on + NX ??
     //    - MMIO/UC: PCD|PWT + NX
     for (UINT8* cur=(UINT8*)mm, *end=cur+mmSize; cur<end; cur+=descSize) {
         EFI_MEMORY_DESCRIPTOR* d = (EFI_MEMORY_DESCRIPTOR*)cur;
@@ -335,7 +338,7 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
 
         u64 phys  = (u64)d->PhysicalStart;
         u64 bytes = (u64)d->NumberOfPages * PAGE_4K;
-        if (phys >= (1ull<<47)) continue; // 48bit canonical 밖은 스킵
+        if (phys >= (1ull<<47)) continue; // 48bit canonical ?? ??
 
         u64 flags = FlagsFromDesc(d);
         st = MapIdentityRange(pml4_phys, phys, bytes, P | flags);
@@ -343,7 +346,7 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
     }
 
     *out_pml4_phys = pml4_phys;
-    // 4) HHDM(physmap) 설치: RAM 타입만 2MiB로 쫙 (U=0, RW, PS, G, NX)
+    // 4) HHDM(physmap) ??: RAM ??? 2MiB? ? (U=0, RW, PS, G, NX)
     {
         EFI_PHYSICAL_ADDRESS hhdm_pdpt_phys;
         st = EnsureHhdmPdpt(pml4_phys, &hhdm_pdpt_phys); 
@@ -361,18 +364,18 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
             u64 stop  = AlignUp2M(phys + size);
 
             for (u64 pa=start; pa<stop; pa+=PAGE_2M) {
-                // PD 보장
+                // PD ??
                 size_t l3i = ((HHDM_BASE + pa) >> 30) & 0x1FF;
                 if ((L3[l3i] & P) == 0) {
                     EFI_PHYSICAL_ADDRESS newpd;
                     st = AllocPhysPage(&newpd); if (EFI_ERROR(st)) { gBS->FreePool(mm); return st; }
                     SetMem((VOID*)(uptr)newpd, PAGE_4K, 0);
-                    L3[l3i] = (newpd & PT_ADDR_MASK) | P | RW; // 상위레벨: supervisor
+                    L3[l3i] = (newpd & PT_ADDR_MASK) | P | RW; // ????: supervisor
                 }
                 volatile u64* L2 = Tbl(L3[l3i]);
                 size_t l2i = ((HHDM_BASE + pa) >> 21) & 0x1FF;
 
-                // 리프: 2MiB, 커널RW, Global, NX
+                // ??: 2MiB, ??RW, Global, NX
                 L2[l2i] = (pa & PD_2M_MASK) | P | RW | PS | G/* | NX*/;
             }
         }
@@ -383,10 +386,10 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
 }
 typedef struct {
     UINT8  type;        // 1 = AHCI/SATA, 2 = NVMe, 3 = USB MSC ...
-    UINT16 pci_bus;     // Bus 번호 (UEFI는 안 줄 수 있음 → 보통 0)
+    UINT16 pci_bus;     // Bus ?? (UEFI? ? ? ? ?? ? ?? 0)
     UINT16 pci_slot;
     UINT16 pci_func;
-    UINT32 port_or_ns;  // AHCI 포트번호, NVMe NSID, USB 포트번호
+    UINT32 port_or_ns;  // AHCI ????, NVMe NSID, USB ????
 } boot_device_info_t;
 
 typedef struct {
@@ -463,13 +466,13 @@ EFI_STATUS FillBootDeviceInfo(EFI_HANDLE DeviceHandle, boot_device_info_t *info)
     EFI_STATUS Status;
     EFI_DEVICE_PATH_PROTOCOL *DevicePath;
 
-    // 1. Device Path 얻기 (장치 종류 판별)
+    // 1. Device Path ?? (?? ?? ??)
     Status = gBS->HandleProtocol(DeviceHandle, &gEfiDevicePathProtocolGuid, (VOID**)&DevicePath);
     if (EFI_ERROR(Status)) {
         return Status;
     }
 
-    // 초기화
+    // ???
     info->type       = 0;
     info->pci_bus    = 0;
     info->pci_slot   = 0;
@@ -487,7 +490,7 @@ EFI_STATUS FillBootDeviceInfo(EFI_HANDLE DeviceHandle, boot_device_info_t *info)
                     info->port_or_ns = Sata->HBAPortNumber;
                     break;
                 }
-                case 0x03: { // VMware AHCI가 이걸 쓸 수 있음
+                case 0x03: { // VMware AHCI? ?? ? ? ??
                     ATAPI_DEVICE_PATH *Ata = (ATAPI_DEVICE_PATH*)Node;
                     info->type = BOOTDEV_AHCI;
                     info->port_or_ns = Ata->PrimarySecondary;
@@ -510,7 +513,7 @@ EFI_STATUS FillBootDeviceInfo(EFI_HANDLE DeviceHandle, boot_device_info_t *info)
         else if (DevicePathType(Node) == HARDWARE_DEVICE_PATH &&
                  DevicePathSubType(Node) == HW_PCI_DP) {
             PCI_DEVICE_PATH *PciNode = (PCI_DEVICE_PATH*)Node;
-            // UEFI DevicePath는 Bus 번호는 명시 안 해줄 수도 있음
+            // UEFI DevicePath? Bus ??? ?? ? ?? ?? ??
             info->pci_slot = PciNode->Device;
             info->pci_func = PciNode->Function;
         }
@@ -554,20 +557,21 @@ EFI_STATUS FixBootDeviceInfo(EFI_HANDLE ImageHandle, boot_device_info_t *info) {
     Status = PciIo->Pci.Read(PciIo, EfiPciIoWidthUint32, 0, sizeof(Hdr)/sizeof(UINT32), &Hdr); // config
     if (EFI_ERROR(Status)) return EFI_SUCCESS;
 
-    UINT8 class = Hdr.Hdr.ClassCode[2];
+    UINT8 _class = Hdr.Hdr.ClassCode[2];
     UINT8 sub   = Hdr.Hdr.ClassCode[1];
     UINT8 prog  = Hdr.Hdr.ClassCode[0];
 
     if (info->type == 0) {                                                                      // minimal correction
-        if (class == 0x01 && sub == 0x08)
+        if (_class == 0x01 && sub == 0x08)
             info->type = 2;                                                                     // NVMe
-        else if (class == 0x01 && sub == 0x06 && prog == 0x01)
+        else if (_class == 0x01 && sub == 0x06 && prog == 0x01)
             info->type = 1;                                                                     // AHCI
-        else if (class == 0x0C && sub == 0x03)
+        else if (_class == 0x0C && sub == 0x03)
             info->type = 3;                                                                     // USB(xHCI)
     }
     return EFI_SUCCESS;
 }
+
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
     EFI_STATUS Status;
     EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *FileSystem;
@@ -577,6 +581,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     void* LoadAddress;
     EFI_PHYSICAL_ADDRESS pml4_phys;
     Print(L"[+] Bootloader started\n");
+    stint();
 
     // Locate file system from image handle
     EFI_LOADED_IMAGE_PROTOCOL *LoadedImage;
@@ -619,7 +624,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
         return Status;
     }
 
-    FileInfo = AllocatePool(FileInfoSize);
+    FileInfo = (EFI_FILE_INFO*)AllocatePool(FileInfoSize);
     if (!FileInfo) {
         Status = EFI_OUT_OF_RESOURCES;
         PrintStatusAndWait(Status);
@@ -651,6 +656,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
         PrintStatusAndWait(Status);
         return Status;
     }
+    Status = Root->Close(Root);
+    if (EFI_ERROR(Status)) {
+        PrintStatusAndWait(Status);
+        return Status;
+	}
     Status = MapRangeVaToPa(pml4_phys, KERNEL_BASE_VA, (u64)LoadAddress, FileSize, P | RW | G);
     if (EFI_ERROR(Status)) {
         Print(L"[-] Failed to map kernel image\n");
@@ -702,7 +712,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
         PrintStatusAndWait(Status);
         return Status;
     }
-    FixBootDeviceInfo(ImageHandle, &Info->bootdev);
+    //FixBootDeviceInfo(ImageHandle, &Info->bootdev);
     Print(L"[+] Boot device type: %u, PCI %u:%u:%u, port/ns: %u\n",
           Info->bootdev.type,
           Info->bootdev.pci_bus,
@@ -723,9 +733,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
         return Status;
     }
     Status = MapRangeVaToPa(pml4_phys,
-                               0xFFFFFFFFFFF00000ull,  // VA (스택을 쓰려는 가상주소)
-                               stack_top,  // PA (실제 물리주소)
-                               0x10000,             // 길이 64KiB
+                               0xFFFFFFFFFFF00000ull,  // VA (??? ??? ????)
+                               stack_top,  // PA (?? ????)
+                               0x10000,             // ?? 64KiB
                                P | RW | G);
                                if (EFI_ERROR(Status)) {
         Print(L"[-] Failed to map stack\n");
@@ -741,13 +751,16 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     Print(L"[+] pml4_phys: 0x%lx\n", pml4_phys);
     Print(L"PML4[510] = %lx\n", pml4e);
     Print(L"PDPT[0] = %lx\n", pdpte0);
-    Print(L" PD[2] = %lx\n", pde2);
+    Print(L"PD[2] = %lx\n", pde2);
+	//FinalShimBypass(ImageHandle, SystemTable);
+	//CloakAndExit(ImageHandle, SystemTable);
+    //ForceShimVerifyAndExit(ImageHandle, SystemTable);
     UINTN MapSize = 0, MapKey, DescSize;
     UINT32 DescVersion;
     gBS->GetMemoryMap(&MapSize, NULL, &MapKey, &DescSize, &DescVersion);
     MapSize += 2 * DescSize;
     VOID *Map = AllocatePool(MapSize);
-    Status = gBS->GetMemoryMap(&MapSize, Map, &MapKey, &DescSize, &DescVersion);
+    Status = gBS->GetMemoryMap(&MapSize, (EFI_MEMORY_DESCRIPTOR*)Map, &MapKey, &DescSize, &DescVersion);
     Status = gBS->ExitBootServices(ImageHandle, MapKey);
     if (EFI_ERROR(Status)) {
         PrintStatusAndWait(Status);
@@ -756,5 +769,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     load_gdt((void*)pml4_phys);
     // Jump to OS
     jump_to_address((void*)(0xFFFFFFFFFFF00000ull + 0x10000),(void*)KERNEL_BASE_VA);
+    while (1) {
+        hlt_loop();
+    }
     return EFI_SUCCESS;
 }
