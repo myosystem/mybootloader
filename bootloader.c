@@ -332,6 +332,7 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
         if (d->Type == EfiUnusableMemory) continue;
         if (d->Type == EfiConventionalMemory) {
             pb_mark_free_range(&phys_bitmap, (u64)d->PhysicalStart, (u64)d->NumberOfPages * PAGE_4K);
+            continue;
         } else {
             pb_mark_used_range(&phys_bitmap, (u64)d->PhysicalStart, (u64)d->NumberOfPages * PAGE_4K);
         }
@@ -752,9 +753,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     Print(L"PML4[510] = %lx\n", pml4e);
     Print(L"PDPT[0] = %lx\n", pdpte0);
     Print(L"PD[2] = %lx\n", pde2);
-	//FinalShimBypass(ImageHandle, SystemTable);
-	//CloakAndExit(ImageHandle, SystemTable);
-    //ForceShimVerifyAndExit(ImageHandle, SystemTable);
     UINTN MapSize = 0, MapKey, DescSize;
     UINT32 DescVersion;
     gBS->GetMemoryMap(&MapSize, NULL, &MapKey, &DescSize, &DescVersion);
