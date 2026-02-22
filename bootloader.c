@@ -277,6 +277,7 @@ static EFI_STATUS MapIdentityRange4K(EFI_PHYSICAL_ADDRESS pml4_phys, u64 phys, u
     }
     return EFI_SUCCESS;
 }
+EFI_PHYSICAL_ADDRESS refcount_phys;
 // ?? API: ????? ?? UEFI? ??? ?? ??? ????? ??
 EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) {
     EFI_STATUS st;
@@ -315,6 +316,8 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
     u64 total_pages = (top + PAGE_4K - 1) / PAGE_4K;
     u64 bitmap_size = (total_pages + 63) / 64 * 8;
     u64 bitmap_pages = (bitmap_size + PAGE_4K - 1) / PAGE_4K;
+	u64 refcount_size = total_pages * sizeof(UINT64);
+	u64 refcount_pages = (refcount_size + PAGE_4K - 1) / PAGE_4K;
     EFI_PHYSICAL_ADDRESS bitmap_phys;
     Print(L"[+] Top of used phys memory: 0x%lx, total pages: %lu, bitmap size: %lu bytes (%lu pages)\n",
           top, total_pages, bitmap_size, bitmap_pages);
@@ -323,7 +326,12 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
     SetMem((VOID*)(uptr)bitmap_phys, bitmap_pages * PAGE_4K, 0xFF);
     phys_bitmap.buf = (UINT64*)(uptr)bitmap_phys;
     phys_bitmap.bits = total_pages;
-    pb_mark_used_range(&phys_bitmap, 0, bitmap_pages * PAGE_4K); // ??? ??? ???
+	Print(L"[+] Allocated phys bitmap at 0x%lx\n", bitmap_phys);
+	st = gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, refcount_pages, &refcount_phys);
+	if (EFI_ERROR(st)) { gBS->FreePool(mm); return st; }
+	SetMem((VOID*)(uptr)refcount_phys, refcount_pages * PAGE_4K, 0);
+	Print(L"[+] Allocated refcount array at 0x%lx\n", refcount_phys);
+
     // 3) ????? ??: UEFI? ??? ?? ??
     //    - RAM/??/???: ?? on + NX ??
     //    - MMIO/UC: PCD|PWT + NX
@@ -345,6 +353,8 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
         st = MapIdentityRange(pml4_phys, phys, bytes, P | flags);
         if (EFI_ERROR(st)) { gBS->FreePool(mm); return st; }
     }
+    pb_mark_used_range(&phys_bitmap, bitmap_phys, bitmap_pages* PAGE_4K); // ??? ??? ???
+	pb_mark_used_range(&phys_bitmap, refcount_phys, refcount_pages * PAGE_4K); // ??? ??? ???
 
     *out_pml4_phys = pml4_phys;
     // 4) HHDM(physmap) ??: RAM ??? 2MiB? ? (U=0, RW, PS, G, NX)
@@ -400,6 +410,7 @@ typedef struct {
     UINT32 framebufferPitch;
     UINT32 framebufferFormat;
     UINT64 physbm;
+	UINT64 refcount;
     UINT64 physbm_size;
     void* rsdp;
     boot_device_info_t bootdev;
@@ -703,8 +714,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     Info->framebufferHeight = ModeInfo->VerticalResolution;
     Info->framebufferPitch  = ModeInfo->PixelsPerScanLine;
     Info->framebufferFormat = ModeInfo->PixelFormat;
-    Info->physbm           = (u64)phys_bitmap.buf;
-    Info->physbm_size      = (u64)phys_bitmap.bits;
+    Info->physbm            = (u64)phys_bitmap.buf;
+	Info->refcount          = (u64)refcount_phys;
+    Info->physbm_size       = (u64)phys_bitmap.bits;
     Info->rsdp              = FindAcpiTable();
     gBS->HandleProtocol(ImageHandle, &gEfiLoadedImageProtocolGuid, (VOID**)&LoadedImage);
     Status = FillBootDeviceInfo(LoadedImage->DeviceHandle, &Info->bootdev);
