@@ -337,11 +337,19 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
     //    - MMIO/UC: PCD|PWT + NX
     for (UINT8* cur=(UINT8*)mm, *end=cur+mmSize; cur<end; cur+=descSize) {
         EFI_MEMORY_DESCRIPTOR* d = (EFI_MEMORY_DESCRIPTOR*)cur;
-        if (d->Type == EfiUnusableMemory) continue;
+        if (d->Type == EfiUnusableMemory || d->Type == EfiReservedMemoryType) continue;
         if (d->Type == EfiConventionalMemory) {
             pb_mark_free_range(&phys_bitmap, (u64)d->PhysicalStart, (u64)d->NumberOfPages * PAGE_4K);
             continue;
-        } else {
+        } 
+        else if (d->Type == EfiBootServicesCode || d->Type == EfiBootServicesData ||
+			d->Type == EfiLoaderCode || d->Type == EfiLoaderData) {
+            pb_mark_used_range(&phys_bitmap, (u64)d->PhysicalStart, (u64)d->NumberOfPages * PAGE_4K);
+        }
+        else if (IsMmioType(d->Type)) {
+			continue; // MMIO
+		}
+        else {
             pb_mark_used_range(&phys_bitmap, (u64)d->PhysicalStart, (u64)d->NumberOfPages * PAGE_4K);
         }
 
@@ -420,15 +428,22 @@ static EFI_GUID ACPI_20_TABLE_GUID = { 0x8868e871, 0xe4f1, 0x11d3, {0xbc, 0x22, 
 static EFI_GUID ACPI_10_TABLE_GUID = { 0xeb9d2d30, 0x2d88, 0x11d3, {0x9a, 0x16, 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d} };
 
 void* FindAcpiTable() {
+    void* acpi20 = NULL;
+    void* acpi10 = NULL;
+
     for (UINTN i = 0; i < gST->NumberOfTableEntries; i++) {
-        EFI_CONFIGURATION_TABLE *Entry = &gST->ConfigurationTable[i];
-        if (CompareGuid(&Entry->VendorGuid, &ACPI_20_TABLE_GUID) ||
-            CompareGuid(&Entry->VendorGuid, &ACPI_10_TABLE_GUID)) {
-            return Entry->VendorTable;
+        EFI_CONFIGURATION_TABLE* Entry = &gST->ConfigurationTable[i];
+
+        if (CompareGuid(&Entry->VendorGuid, &ACPI_20_TABLE_GUID)) {
+            acpi20 = Entry->VendorTable;
+            return acpi20;
+        }
+        if (CompareGuid(&Entry->VendorGuid, &ACPI_10_TABLE_GUID)) {
+            acpi10 = Entry->VendorTable;
         }
     }
-    Print(L"ACPI Table Not Found\n");
-    return NULL;
+
+    return (acpi20 != NULL) ? acpi20 : acpi10;
 }
 VOID PrintStatusAndWait(EFI_STATUS Status) {
     if (Status == EFI_SUCCESS) {
