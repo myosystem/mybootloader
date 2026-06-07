@@ -302,7 +302,6 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
     u64 top = 0;
     for(u64 off = 0; off < mmSize; off += descSize){
         EFI_MEMORY_DESCRIPTOR* d = (EFI_MEMORY_DESCRIPTOR*)((UINT8*)mm + off);
-        //Print(L"Type %u, start=%lx, pages=%lx\n", d->Type, d->PhysicalStart, d->NumberOfPages);
         UINT64 start = d->PhysicalStart;
         if (d->Type == EfiConventionalMemory ||
             d->Type == EfiBootServicesCode ||
@@ -319,18 +318,14 @@ EFI_STATUS BuildIdentityPageTablesFromUefi(EFI_PHYSICAL_ADDRESS* out_pml4_phys) 
 	u64 refcount_size = total_pages * sizeof(UINT64);
 	u64 refcount_pages = (refcount_size + PAGE_4K - 1) / PAGE_4K;
     EFI_PHYSICAL_ADDRESS bitmap_phys;
-    Print(L"[+] Top of used phys memory: 0x%lx, total pages: %lu, bitmap size: %lu bytes (%lu pages)\n",
-          top, total_pages, bitmap_size, bitmap_pages);
     st = gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, bitmap_pages, &bitmap_phys);
     if (EFI_ERROR(st)) { gBS->FreePool(mm); return st; }
     SetMem((VOID*)(uptr)bitmap_phys, bitmap_pages * PAGE_4K, 0xFF);
     phys_bitmap.buf = (UINT64*)(uptr)bitmap_phys;
     phys_bitmap.bits = total_pages;
-	Print(L"[+] Allocated phys bitmap at 0x%lx\n", bitmap_phys);
 	st = gBS->AllocatePages(AllocateAnyPages, EfiLoaderData, refcount_pages, &refcount_phys);
 	if (EFI_ERROR(st)) { gBS->FreePool(mm); return st; }
 	SetMem((VOID*)(uptr)refcount_phys, refcount_pages * PAGE_4K, 0);
-	Print(L"[+] Allocated refcount array at 0x%lx\n", refcount_phys);
 
     // 3) ????? ??: UEFI? ??? ?? ??
     //    - RAM/??/???: ?? on + NX ??
@@ -607,7 +602,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     UINTN FileInfoSize = 0;
     void* LoadAddress;
     EFI_PHYSICAL_ADDRESS pml4_phys;
-    Print(L"[+] Bootloader started\n");
     stint();
 
     // Locate file system from image handle
@@ -623,20 +617,17 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
         PrintStatusAndWait(Status);
         return Status;
     }
-    Print(L"[+] Building page tables...\n");
     Status = BuildIdentityPageTablesFromUefi(&pml4_phys);
     if (EFI_ERROR(Status)) {
         Print(L"[-] Failed to build page tables\n");
         PrintStatusAndWait(Status);
         return Status;
     }
-    Print(L"[+] Page tables built at 0x%lx\n", pml4_phys);
     Status = FileSystem->OpenVolume(FileSystem, &Root);
     if (EFI_ERROR(Status)) {
         PrintStatusAndWait(Status);
         return Status;
     }
-    Print(L"[+] Loading kernel image...\n");
     Status = Root->Open(Root, &File, L"EFI\\Boot\\os.bin", EFI_FILE_MODE_READ, 0);
     if (EFI_ERROR(Status)) {
         Print(L"[-] Failed to open os.bin\n");
@@ -740,13 +731,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
         PrintStatusAndWait(Status);
         return Status;
     }
-    //FixBootDeviceInfo(ImageHandle, &Info->bootdev);
-    Print(L"[+] Boot device type: %u, PCI %u:%u:%u, port/ns: %u\n",
-          Info->bootdev.type,
-          Info->bootdev.pci_bus,
-          Info->bootdev.pci_slot,
-          Info->bootdev.pci_func,
-          Info->bootdev.port_or_ns);
     Status = MapRangeVaToPa(pml4_phys, Info->framebufferAddr, Graphics->Mode->FrameBufferBase, Info->framebufferHeight * Info->framebufferPitch * 4, P | RW | G | PCD | PWT);
     if (EFI_ERROR(Status)) {
         Print(L"[-] Failed to map framebuffer memory\n");
@@ -765,21 +749,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
                                stack_top,  // PA (?? ????)
                                0x10000,             // ?? 64KiB
                                P | RW | G);
-                               if (EFI_ERROR(Status)) {
+    if (EFI_ERROR(Status)) {
         Print(L"[-] Failed to map stack\n");
         PrintStatusAndWait(Status);
         return Status;
     }
-    Print(L"[+] Framebuffer: 0x%lx (%ux%u)\n", Info->framebufferAddr, Info->framebufferWidth, Info->framebufferHeight);
-    u64 pml4e = ((u64*)pml4_phys)[510];
-    u64 pdpt_phys = pml4e & PT_ADDR_MASK;
-    u64 pdpte0 = ((u64*)pdpt_phys)[0];
-    u64 pd_phys = pdpte0 & PT_ADDR_MASK;
-    u64 pde2 = ((u64*)pd_phys)[2];
-    Print(L"[+] pml4_phys: 0x%lx\n", pml4_phys);
-    Print(L"PML4[510] = %lx\n", pml4e);
-    Print(L"PDPT[0] = %lx\n", pdpte0);
-    Print(L"PD[2] = %lx\n", pde2);
     UINTN MapSize = 0, MapKey, DescSize;
     UINT32 DescVersion;
     gBS->GetMemoryMap(&MapSize, NULL, &MapKey, &DescSize, &DescVersion);
