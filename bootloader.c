@@ -197,6 +197,7 @@ static EFI_STATUS MapIdentityRange(EFI_PHYSICAL_ADDRESS pml4_phys, u64 phys_star
 EFI_STATUS MapRangeVaToPa(EFI_PHYSICAL_ADDRESS pml4_phys,
                           u64 va, u64 pa, u64 bytes, u64 flags)
 {
+    pb_mark_used_range(&phys_bitmap, pa, bytes);
     EFI_STATUS st;
     u64 cur_va = va;
     u64 cur_pa = pa;
